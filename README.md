@@ -1,0 +1,2 @@
+# alexa-via-ethos-example
+An Amazon Alexa personal assistant example that leverages the Ellucian Ethos Integration component to deliver real-time data to this student-use skill. The skill provides Colleges and Universities a quick start example of how a voice-enable skill could be constructed to help their students and staff interact with the institution using only their voice and a personal assistant device.
