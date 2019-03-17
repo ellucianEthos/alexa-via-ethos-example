@@ -1,0 +1,82 @@
+{
+  "_from": "ask-sdk-core@^2.0.0",
+  "_id": "ask-sdk-core@2.0.0",
+  "_inBundle": false,
+  "_integrity": "sha512-7bPq0/cbGueFi7Y82rk3QP+Km5IalUXEQwMS5XNnWLiSVAOm+0kEfs1JiS49awa35uo6Bs0plfb0fibirndiBg==",
+  "_location": "/ask-sdk-core",
+  "_phantomChildren": {},
+  "_requested": {
+    "type": "range",
+    "registry": true,
+    "raw": "ask-sdk-core@^2.0.0",
+    "name": "ask-sdk-core",
+    "escapedName": "ask-sdk-core",
+    "rawSpec": "^2.0.0",
+    "saveSpec": null,
+    "fetchSpec": "^2.0.0"
+  },
+  "_requiredBy": [
+    "/ask-sdk"
+  ],
+  "_resolved": "https://registry.npmjs.org/ask-sdk-core/-/ask-sdk-core-2.0.0.tgz",
+  "_shasum": "c867318a153ee1caff82d2731ba44f3d48170536",
+  "_spec": "ask-sdk-core@^2.0.0",
+  "_where": "/Users/tianrenz/Downloads/fact-skill/node_modules/ask-sdk",
+  "author": {
+    "name": "Amazon.com"
+  },
+  "bugs": {
+    "url": "https://github.com/alexa/alexa-skill-sdk-for-nodejs/issues"
+  },
+  "bundleDependencies": false,
+  "contributors": [
+    {
+      "name": "Tianren Zhang",
+      "email": "tianrenz@amazon.com"
+    },
+    {
+      "name": "Tiantian Xie",
+      "email": "xtiantia@amazon.com"
+    }
+  ],
+  "deprecated": false,
+  "description": "Core package for Alexa Skills Kit SDK",
+  "devDependencies": {
+    "@types/chai": "^4.1.2",
+    "@types/mocha": "^5.0.0",
+    "@types/node": "^9.6.1",
+    "@types/sinon": "^4.3.0",
+    "ask-sdk-model": "^1.0.0",
+    "chai": "^4.1.2",
+    "del": "^3.0.0",
+    "gulp": "^4.0.0",
+    "mocha": "^5.0.5",
+    "nock": "^9.2.3",
+    "nyc": "^11.4.1",
+    "sinon": "^4.5.0",
+    "ts-node": "^5.0.1",
+    "tslint": "^5.9.1",
+    "typedoc": "^0.11.1",
+    "typescript": "^2.8.1"
+  },
+  "homepage": "https://github.com/alexa/alexa-skill-sdk-for-nodejs#readme",
+  "keywords": [
+    "Alexa",
+    "SDK"
+  ],
+  "license": "Apache-2.0",
+  "main": "index.js",
+  "name": "ask-sdk-core",
+  "peerDependencies": {
+    "ask-sdk-model": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexa/alexa-skills-kit-sdk-for-nodejs.git"
+  },
+  "scripts": {
+    "default": "gulp"
+  },
+  "types": "index.d.ts",
+  "version": "2.0.0"
+}

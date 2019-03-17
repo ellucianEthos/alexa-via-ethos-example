@@ -1,0 +1,24 @@
+{
+  "name": "Alexa on Ethos Platform skill",
+  "version": "1.0.0",
+  "description": "An Amazon Alexa skill leveraging the Ellucian Ethos Integration platform",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "alexa",
+    "skill",
+    "fact"
+  ],
+  "author": "Primo Lazar and Gwenael Kerdiles",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "ask-sdk": "^2.0.0",
+    "aws-sdk": "^2.338.0",
+    "bluebird": "^3.5.2",
+    "fuzzball": "^1.1.6",
+    "request": "^2.88.0",
+    "request-promise": "^4.2.2"
+  }
+}

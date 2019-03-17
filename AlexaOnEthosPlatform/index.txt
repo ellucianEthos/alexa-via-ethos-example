@@ -1,0 +1,535 @@
+/* eslint-disable  func-names */
+/* eslint-disable  no-console */
+const Alexa = require('ask-sdk');
+const http = require('http');
+const rp = require('request-promise');
+const AWS  = require('aws-sdk');
+// Use bluebird implementation of Promise
+AWS.config.setPromisesDependency(require('bluebird'));
+const ssm  = new AWS.SSM();
+const fuzz = require('fuzzball');
+
+const ParamBannerID = 'EthosDemoBannerID';
+const ParamBannerName = 'EthosDemoPersonName';
+var configuredBannerID;
+var configuredBannerName;
+var configValidated = false;
+
+async function isSkillConfigured()
+{
+    if(configValidated) return true;
+    
+    let params = {
+        Names: [ 
+            ParamBannerID,
+            ParamBannerName
+        ],
+        WithDecryption: false
+    };
+	
+    const retrievedParams = await ssm.getParameters(params).promise()
+		.catch(error => console.error('Could not retrieve params from AWS Systems Manager Parameter Store, because: ' + error.message));
+    
+	console.log('Retrieved params: ' + retrievedParams);
+	console.log('Parameters: ' + retrievedParams.Parameters);
+			
+	for(var i=0; i<retrievedParams.Parameters.length; i++) {
+		var param = retrievedParams.Parameters[i];
+		console.log('Param is: ' + param);
+		if(param.Name && param.Name==ParamBannerID) {
+			if(!param.Value){
+				console.log('Could not find value for param ' + ParamBannerID);
+				return false;
+			} 
+			else {
+				configuredBannerID = param.Value
+			}
+		}
+		else if(param.Name && param.Name==ParamBannerName) {
+			if(!param.Value){
+				console.log('Could not find value for param ' + ParamBannerName);
+				return false;
+			} 
+			else {
+				configuredBannerName = param.Value
+			}
+		}
+		else {
+			console.log('Got back a superfluous param named ' + param.Name + ' with a value of ' + param.Value);
+		}
+	}
+	
+	// Check if the parameters we've retrieved validate successfully
+	if(await validateConfig()){
+		configValidated = true;
+		return true;
+	}
+	else {
+		configValidated = false;
+		return false;
+	}
+};
+
+async function validateConfig(){
+	console.log('entering validateConfig()');
+	
+	const personDetails = await getPersonDetails();
+	let PersonAPIName;
+	
+	console.log('The getPersonDetails response looks like' + personDetails + '; its type is ' + typeof(personDetails));		
+	try{
+		// Process the returned payload from Ethos API and extract the person's name to answer the question
+		PersonAPIName = personDetails[0].fullName;
+	}
+	catch(error){console.error('Could not find a fullName attribute in the response from PersonDetails API because ' + error.message)};
+	
+	const fuzz_ratio = fuzz.token_set_ratio(configuredBannerName.toLowerCase(), PersonAPIName.toLowerCase());
+	console.log('Comparing the configured name of ' + configuredBannerName + ' and the name returned from Banner (' + PersonAPIName + ') and got a match of ' + fuzz_ratio + '%');
+	return fuzz_ratio>85;
+};
+
+async function getPersonDetails(){
+    let    responseJsonBody;
+    
+    // Call the REST service
+    console.log('Getting the Person request');
+    let options = {
+        uri: 'http://ukcloud38-xemachine.cloud.elluciandemo.com:7005/StudentApi/api/person-identifications?bannerId=' + configuredBannerID,
+        auth: {
+            user: 'APIUSER',
+            pass: '111111'
+        },
+        headers: {'Content-Type': 'application/vnd.hedtech.v12+json', 'Accept':'application/vnd.hedtech.v1+json'},
+		json : true
+    };
+    
+    responseJsonBody = await rp(options)
+		.catch(error=>console.error('Could not retrieve information from Person API due to ' + error.message));
+
+	return responseJsonBody;
+};
+
+async function getBalance(){
+    let    responseJsonBody;
+    
+    // Call the REST service
+    console.log('Getting the Account Balance request');
+    let options = {
+        uri: 'http://ukcloud38-xemachine.cloud.elluciandemo.com:7005/StudentApi/api/account-balances/' + configuredBannerID,
+        auth: {
+            user: 'APIUSER',
+            pass: '111111'
+        },
+        headers: {'Content-Type': 'application/vnd.hedtech.v12+json', 'Accept':'application/vnd.hedtech.v1+json'},
+		json : true
+    };
+    
+    responseJsonBody = await rp(options)
+		.catch(error=>console.error('Could not retrieve information from Account Balance API due to ' + error.message));
+
+	return responseJsonBody;
+};
+
+async function getGradeDetails(){
+    let    responseJsonBody;
+    
+    // Call the REST service
+    console.log('Getting the Grade request');
+    let options = {
+        uri: 'http://ukcloud38-xemachine.cloud.elluciandemo.com:7005/StudentApi/api/students/' + configuredBannerID +'/grades',
+        auth: {
+            user: 'APIUSER',
+            pass: '111111'
+        },
+        headers: {'Content-Type': 'application/vnd.hedtech.v12+json', 'Accept':'application/vnd.hedtech.v1+json'},
+		json : true
+    };
+    
+    responseJsonBody = await rp(options)
+		.catch(error=>console.error('Could not retrieve information from Grade API due to ' + error.message));
+
+	return responseJsonBody;
+};
+
+async function getGPA(){
+	let    responseJsonBody;
+    
+    // Call the REST service
+    console.log('Getting the GPA request');
+    let options = {
+        uri: 'http://ukcloud38-xemachine.cloud.elluciandemo.com:7005/StudentApi/api/students/' + configuredBannerID +'/gpa-academic-standings',
+        auth: {
+            user: 'APIUSER',
+            pass: '111111'
+        },
+        headers: {'Content-Type': 'application/vnd.hedtech.v12+json', 'Accept':'application/vnd.hedtech.v1+json'},
+		json : true
+    };
+	
+	responseJsonBody = await rp(options)
+		.catch(error=>console.error('Could not retrieve information from Grade API due to ' + error.message));
+
+	return responseJsonBody;
+}
+
+
+const EthosHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'LaunchRequest';
+  },
+  async handle(handlerInput) {
+    console.log('Entering LaunchRequest');
+	var speechOutput;
+	var repromptOutput;
+	
+    if(await isSkillConfigured()){
+		console.log('The skill seems to be correctly configured and validated');
+        speechOutput = ETHOS_INTRO_MESSAGE + ETHOS_REPROMPT + ETHOS_EXAMPLE_PROMPT;
+        repromptOutput = ETHOS_REPROMPT;
+    }
+    else {
+		console.log('The skill does not seem to be correctly configured (or validated), let\'s get the user to reconfigure');
+        speechOutput = ETHOS_INTRO_MESSAGE + CONFIG_PROMPT1;
+        repromptOutput = CONFIG_REPROMPT1;
+    }
+
+    console.log('Speech output will be ' + speechOutput);
+    console.log('Reprompt output will be ' + repromptOutput);
+    return handlerInput.responseBuilder
+      .speak(speechOutput)
+      .reprompt(repromptOutput)
+      .getResponse();
+  },
+};
+
+const AttendanceHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'IntentRequest' && request.intent.name === 'GetAttendance';
+  },
+  handle(handlerInput) {
+    console.log('Entering GetAttendance');
+    const speechOutput = ATTENDANCE_MESSAGE;
+
+    console.log('Speech output will be ' + speechOutput);
+    return handlerInput.responseBuilder
+      .speak(speechOutput)
+      .reprompt(ANYTHING_ELSE)
+      .withSimpleCard(SKILL_NAME, speechOutput)
+      .getResponse();
+  },
+};
+
+const GPAHandler = {
+    canHandle(handlerInput) {
+        const request = handlerInput.requestEnvelope.request;
+        return request.type === 'IntentRequest' && request.intent.name === 'GetGPA';
+    },
+    async handle(handlerInput) {
+        console.log('Entering GetGPA');
+        let speechOutput = NOGPA_MESSAGE;
+		
+        let response = await getGPA()
+			.catch(error=>console.error('Could not retrieve information from GPA API due to ' + error.message));;
+
+        if(response){
+			// Process the returned payload from Ethos API and extract the GPA to answer the question
+			const GPA = response[0].levelGPAs[0].gpa;
+			// If all goes well, we want to call the resolve function to set the value returned by the asynch call.
+		    speechOutput = GPA_MESSAGE + GPA;
+		}
+		
+        return handlerInput.responseBuilder
+                        .speak(speechOutput)
+                        .reprompt(ANYTHING_ELSE)
+                        .withSimpleCard(SKILL_NAME, speechOutput)
+                        .getResponse();
+    },
+};
+
+const BalanceHandler = {
+    canHandle(handlerInput) {
+        const request = handlerInput.requestEnvelope.request;
+        return request.type === 'IntentRequest' && request.intent.name === 'GetBalance';
+    },
+    async handle(handlerInput) {
+        console.log('Entering GetBalance');
+        let speechOutput = NO_BALANCE_RESPONSE;
+		
+		let response = await getBalance()
+		    .catch(error=>console.error('Could not retrieve information from Balance API due to ' + error.message));
+
+		if(response) {
+		    speechOutput = BALANCE_RESPONSE + response.balance.toFixed(0) + ' Australian dollars.';
+	    }
+
+        return handlerInput.responseBuilder
+                        .speak(speechOutput)
+                        .reprompt(ANYTHING_ELSE)
+                        .withSimpleCard(SKILL_NAME, speechOutput)
+                        .getResponse();
+    },
+};
+
+const GradeHandler = {
+    canHandle(handlerInput) {
+        const request = handlerInput.requestEnvelope.request;
+        return request.type === 'IntentRequest' && request.intent.name === 'GetGrade';
+    },
+    async handle(handlerInput) {
+        console.log('Entering GetGrade');
+        let speechOutput = NO_GRADE_RESPONSE;
+		let gotGrade = false;
+		const request = handlerInput.requestEnvelope.request;
+		const SubjectTitle = (request.intent.slots.SubjectTitle.value ? request.intent.slots.SubjectTitle.value : null);
+
+		console.log('Waiting for promise');
+        await getGradeDetails().then(function(response) {
+                console.log('Got a positive response to promise');
+                for(let i=0; i<response.length; i++){
+				    if(fuzz.token_set_ratio(response[i].courseTitle, SubjectTitle) > 90) {
+						console.log('Found a matching course grade instance for ' + response[i].courseTitle + ' CRN# ' + response[i].crn);
+						if(response[i].gradeFinal) {
+						    speechOutput = FINAL_GRADE_RESPONSE + response[i].gradeFinal;
+							gotGrade = true;
+						}
+						if(response[i].gradeMidterm) {
+						    speechOutput = gotGrade ? speechOutput + ', and ' + MIDTERM_GRADE_RESPONSE + response[i].gradeMidterm : MIDTERM_GRADE_RESPONSE + response[i].gradeMidterm;
+						}
+						break;
+					};
+				}
+            }, function(error) {
+                console.log('Got a negative response to promise, with details: ' + error.message);
+            });
+        console.log('Finished waiting for promise.');
+		
+        return handlerInput.responseBuilder
+                        .speak(speechOutput)
+                        .reprompt(ANYTHING_ELSE)
+                        .withSimpleCard(SKILL_NAME, speechOutput)
+                        .getResponse();
+    },
+};
+
+const ConfigureHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'IntentRequest' && request.intent.name === 'ResetConfiguration';
+  },
+  handle(handlerInput) {
+    console.log('Entering ResetConfiguration');
+	var speechOutput;
+	var repromptOutput;
+	
+    speechOutput = OK + CONFIG_PROMPT1;
+    repromptOutput = CONFIG_REPROMPT1;
+
+    console.log('Speech output will be ' + speechOutput);
+    console.log('Reprompt output will be ' + repromptOutput);
+    return handlerInput.responseBuilder
+      .speak(speechOutput)
+      .reprompt(repromptOutput)
+      .getResponse();
+  },
+};
+
+const ProvideBannerIDHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'IntentRequest' && request.intent.name === 'ProvideBannerID';
+  },
+  async handle(handlerInput) {
+    console.log('Entering ProvideBannerID');
+	var speechOutput;
+	var repromptOutput;
+	const request = handlerInput.requestEnvelope.request;
+	const BannerID = (request.intent.slots.BannerID.value ? 'A'+request.intent.slots.BannerID.value.padStart(8,0) : null);
+	
+	if (BannerID){
+		configuredBannerID = BannerID;
+		
+		let params = {
+			Name: ParamBannerID, 
+			Type: 'String',
+			Value: BannerID,
+            Description: 'The Banner ID required to access the Person API in the Ethos Demo',
+            Overwrite: true
+        };
+		await ssm.putParameter(params).promise()
+			.then(function(result){console.log('Successfully wrote the paramter ' + ParamBannerID + ' with the value ' + BannerID + ' to the SSM store');})
+		    .catch(error => console.error('Could not set parameter ' + ParamBannerID + ' in the AWS Systems Manager Parameter Store, because: ' + error.message));
+		
+		speechOutput = OK + CONFIG_PROMPT2;
+        repromptOutput = CONFIG_REPROMPT2;
+	}
+	else{
+		speechOutput = CONFIG_FAIL_ID + CONFIG_REPROMPT1;
+		repromptOutput = CONFIG_REPROMPT1;
+	}
+    
+    console.log('Speech output will be ' + speechOutput);
+    console.log('Reprompt output will be ' + repromptOutput);
+    return handlerInput.responseBuilder
+      .speak(speechOutput)
+      .reprompt(repromptOutput)
+      .getResponse();
+  },
+};
+
+const ProvideNameHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'IntentRequest' && request.intent.name === 'ProvideName';
+  },
+  async handle(handlerInput) {
+    console.log('Entering ProvideName');
+	var speechOutput;
+	var repromptOutput;
+	const request = handlerInput.requestEnvelope.request;
+	const PersonName = (request.intent.slots.PersonName.value ? request.intent.slots.PersonName.value : null);
+	
+	if (PersonName){
+		configuredBannerName = PersonName; 
+		
+		let params = {
+			Name: ParamBannerName, 
+			Type: 'String',
+			Value: PersonName,
+            Description: 'The Person Name required to validate the Banner ID specified in the Ethos Demo',
+            Overwrite: true
+        };
+		await ssm.putParameter(params).promise()
+			.then(function(result){console.log('Successfully wrote the paramter ' + ParamBannerName + ' with the value ' + PersonName + ' to the SSM store');})
+		    .catch(error => console.error('Could not set parameter ' + ParamBannerName + ' in the AWS Systems Manager Parameter Store, because: ' + error.message));
+		
+		// Now validate that the parameters provided are actually correct.
+		if(await validateConfig()){
+			configValidated = true;
+			speechOutput = CONFIG_SUCCESS + ETHOS_REPROMPT + ETHOS_EXAMPLE_PROMPT;
+			repromptOutput = ETHOS_REPROMPT;
+		}
+		else {
+			configValidated = false;
+			speechOutput = CONFIG_FAIL + CONFIG_REPROMPT1;
+			repromptOutput = CONFIG_REPROMPT1;
+		}
+	}
+	else{
+		speechOutput = CONFIG_FAIL_ID + CONFIG_REPROMPT1;
+		repromptOutput = CONFIG_REPROMPT1;
+	}
+    
+    console.log('Speech output will be ' + speechOutput);
+    console.log('Reprompt output will be ' + repromptOutput);
+    return handlerInput.responseBuilder
+      .speak(speechOutput)
+      .reprompt(repromptOutput)
+      .getResponse();
+  },
+};
+
+const HelpHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'IntentRequest'
+      && (request.intent.name === 'AMAZON.HelpIntent' || request.intent.name === 'AMAZON.FallbackIntent');
+  },
+  handle(handlerInput) {
+    return handlerInput.responseBuilder
+      .speak(HELP_MESSAGE + QUESTION1 + QUESTION2 + QUESTION3 + QUESTION4 +QUESTION_FINAL)
+      .reprompt(HELP_REPROMPT)
+      .getResponse();
+  },
+};
+
+const ExitHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'IntentRequest'
+      && (request.intent.name === 'AMAZON.CancelIntent'
+        || request.intent.name === 'AMAZON.StopIntent');
+  },
+  handle(handlerInput) {
+    return handlerInput.responseBuilder
+      .speak(STOP_MESSAGE)
+      .getResponse();
+  },
+};
+
+const SessionEndedRequestHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'SessionEndedRequest';
+  },
+  handle(handlerInput) {
+    console.log(`Session ended with reason: ${handlerInput.requestEnvelope.request.reason}`);
+
+    return handlerInput.responseBuilder.getResponse();
+  },
+};
+
+const ErrorHandler = {
+  canHandle() {
+    return true;
+  },
+  handle(handlerInput, error) {
+    console.log(`Error handled: ${error.message}`);
+
+    return handlerInput.responseBuilder
+      .speak('Sorry, an error occurred.')
+      .reprompt('Sorry, an error occurred.')
+      .getResponse();
+  },
+};
+
+const SKILL_NAME = 'Ellucian University';
+const ETHOS_INTRO_MESSAGE = 'Welcome to Ellucian University. ';
+const ETHOS_REPROMPT = 'You can ask me about your life at the University. ';
+const ETHOS_EXAMPLE_PROMPT = 'To get a full list of commands, just say help.';
+const ATTENDANCE_MESSAGE = 'Well, we have strong evidence, even visual proof, that you have very recently attended a class on machine learning. However, the Ethos Data Lake is also full of records of absences for other subjects.';
+const GPA_MESSAGE = "Your g.p.a. is ";
+const NOGPA_MESSAGE = "I can't seem to get your G.P.A. at this time. Can you please try later?";
+const ANYTHING_ELSE = 'What else can I help you with today?';
+const HELP_MESSAGE = 'You can ask me questions like. ';
+const HELP_REPROMPT = 'What can I help you with?';
+const STOP_MESSAGE = 'Thank you, have a nice day.';
+const CONFIG_FAIL_ID = 'I need a valid Banner ID before we can proceed. ';
+const CONFIG_PROMPT1 = 'I need to get some of your details before we can proceed. What is your Banner I.D.?';
+const CONFIG_REPROMPT1 = 'What is your Banner I.D.?';
+const CONFIG_PROMPT2 = 'Now I just need your full name.';
+const CONFIG_REPROMPT2 = 'What is your name?';
+const CONFIG_SUCCESS = 'Thank you, I have reconfigured this intent for you. ';
+const CONFIG_FAIL = 'Hmmm. It seems that the Banner ID you provided does not match your ID. Let\'s try again. '
+const OK = 'O.K. ';
+const QUESTION1 = 'What is my attendance? ';
+const QUESTION2 = 'What is my gpa? ';
+const QUESTION3 = 'What was my grade for Computing Foundations? , you can ask this for any other class you have taken. ';
+const QUESTION4 = 'Or you can ask, What is my account balance? ';
+const QUESTION_FINAL = 'Or, say help at any time to repeat this list. You can also change user by saying, change user.';
+const UNDER_CONSTRUCTION = 'Sorry, this intent is still under construction, please try later';
+const FINAL_GRADE_RESPONSE = 'Your final grade was ';
+const MIDTERM_GRADE_RESPONSE = 'Your midterm grade was ';
+const NO_GRADE_RESPONSE = 'I can\'t seem to find the grade for that.';
+const BALANCE_RESPONSE = 'Your account balance is ';
+const NO_BALANCE_RESPONSE = 'I couldn\'t find your account balance at this time ';
+
+const skillBuilder = Alexa.SkillBuilders.standard();
+
+exports.handler = skillBuilder
+  .addRequestHandlers(
+    EthosHandler,
+    AttendanceHandler,
+    GPAHandler,
+	BalanceHandler,
+	GradeHandler,
+	ConfigureHandler,
+	ProvideBannerIDHandler,
+	ProvideNameHandler,
+    HelpHandler,
+    ExitHandler,
+    SessionEndedRequestHandler
+  )
+  .addErrorHandlers(ErrorHandler)
+  .lambda();
