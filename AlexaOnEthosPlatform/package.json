@@ -1,7 +1,7 @@
 {
-  "name": "Alexa on Ethos Platform skill",
-  "version": "1.0.0",
-  "description": "An Amazon Alexa skill leveraging the Ellucian Ethos Integration platform",
+  "name": "skill-sample-nodejs-fact-i18n",
+  "version": "2.0.0",
+  "description": "I18n version of fact skill.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -11,7 +11,7 @@
     "skill",
     "fact"
   ],
-  "author": "Primo Lazar and Gwenael Kerdiles",
+  "author": "Amazon.com",
   "license": "Apache-2.0",
   "dependencies": {
     "ask-sdk": "^2.0.0",
