@@ -169,23 +169,55 @@ async function getBalance(){
 	return responseJsonBody;
 };
 
-async function getGradeDetails(){
+async function getSectionRegistrationsDetails(){
     let    responseJsonBody;
     
     // Call the REST service
-    console.log('Getting the Grade request');
+    console.log('Getting the Section Registration request');
     let options = {
-		uri: bannerStudentAPIEndpoint + '/students/' + configuredBannerID +'/grades',
-        auth: {
-            user: bannerStudentAPIUsername,
-            pass: bannerStudentAPIPassword
-        },
-        headers: {'Content-Type': 'application/vnd.hedtech.v12+json', 'Accept':'application/vnd.hedtech.v1+json'},
+		uri: 'https://integrate.elluciancloud.com/api/section-registrations?registrant=' + configuredBannerPersonGUID,
+        headers: {	'Accept':'application/vnd.hedtech.integration.v7+json',
+					'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
     };
     
     responseJsonBody = await rp(options)
-		.catch(error=>console.error('Could not retrieve information from Grade API due to ' + error.message));
+		.catch(error=>console.error('Could not retrieve information from Section Registrations API due to ' + error.message));
+
+	return responseJsonBody;
+};
+
+async function getSectionDetails(sectionGUID){
+    let    responseJsonBody;
+    
+    // Call the REST service
+    console.log('Getting the Section request for ' + sectionGUID);
+    let options = {
+		uri: 'https://integrate.elluciancloud.com/api/sections/' + sectionGUID,
+        headers: {	'Accept':'application/vnd.hedtech.integration.v16.0.0+json',
+					'Authorization':'Bearer ' + ethosBearerToken},
+		json : true
+    };
+    
+    responseJsonBody = await rp(options)
+		.catch(error=>console.error('Could not retrieve information from Sections API due to ' + error.message));
+
+	return responseJsonBody;
+};
+
+async function getGradeDefinitionsDetails(gradeGUID){
+    let    responseJsonBody;
+    
+    // Call the REST service
+    console.log('Getting the Grade Definitions request for ' + gradeGUID);
+    let options = {
+		uri: 'https://integrate.elluciancloud.com/api/grade-definitions/' + gradeGUID,
+        headers: {	'Authorization':'Bearer ' + ethosBearerToken},
+		json : true
+    };
+    
+    responseJsonBody = await rp(options)
+		.catch(error=>console.error('Could not retrieve information from Grade Definitions API due to ' + error.message));
 
 	return responseJsonBody;
 };
@@ -208,7 +240,7 @@ async function getGPA(){
     };
 	
 	responseJsonBody = await rp(options)
-		.catch(error=>console.error('Could not retrieve information from Grade API due to ' + error.message));
+		.catch(error=>console.error('Could not retrieve information from GPA API due to ' + error.message));
 
 	return responseJsonBody;
 }
@@ -338,26 +370,37 @@ const GradeHandler = {
 		const SubjectTitle = (request.intent.slots.SubjectTitle.value ? request.intent.slots.SubjectTitle.value : null);
 
 		console.log('Waiting for promise');
-        await getGradeDetails().then(function(response) {
+        await getSectionRegistrationsDetails().then(async function(SectionRegResponse) {
                 console.log('Got a positive response to promise');
-				// The following loop goes through all of the Grades that the student has received.
-				// It will try to match the grade to the name of the class the user specified.
-                for(let i=0; i<response.length; i++){
-				    if(fuzz.token_set_ratio(response[i].courseTitle, SubjectTitle) > 90) {
-						console.log('Found a matching course grade instance for ' + response[i].courseTitle + ' CRN# ' + response[i].crn);
-						if(response[i].gradeFinal) {
-						    speechOutput = FINAL_GRADE_RESPONSE + response[i].gradeFinal;
-							gotGrade = true;
-						}
-						if(response[i].gradeMidterm) {
-						    speechOutput = gotGrade ? speechOutput + ', and ' + MIDTERM_GRADE_RESPONSE + response[i].gradeMidterm : MIDTERM_GRADE_RESPONSE + response[i].gradeMidterm;
-						}
+				// The following loop goes through all of the Section Registrations that the student has.
+				// It will try to match the title of the Section to the one the user specified.
+                for(let i=0; i<SectionRegResponse.length; i++){
+					// If one of our loops has already got our desired grade, then stop processing.
+					if (gotGrade) { 
 						break;
-					};
+					}
+					// Using the ID of the section the student is registered in, retrieve the section details, 
+					// so we can get the title out and compare it.
+					await getSectionDetails(SectionRegResponse[i].section.id).then(async function(sectionResponse) {
+						console.log('The response is ' + sectionResponse);
+						console.log('Comparing subject title ' + SubjectTitle + ' to response course ' + sectionResponse.titles[0].value);
+						if(fuzz.token_set_ratio(sectionResponse.titles[0].value, SubjectTitle) > 90) {
+							console.log('Found a matching course grade instance for ' + sectionResponse.titles[0].value + ' CRN# ' + sectionResponse.code);
+							
+							await getGradeDefinitionsDetails(SectionRegResponse[i].grades[0].grade.id).then(function(GradeDefResponse) {
+								speechOutput = GRADE_RESPONSE + sectionResponse.titles[0].value + ' was ' + GradeDefResponse.grade.value;
+								gotGrade = true;
+							}, function(error3) {
+								console.log('Got a negative response to Grade Definition promise, with details: ' + error3.message);
+							});
+						};
+					}, function(error2) {
+						console.log('Got a negative response to Section promise, with details: ' + error2.message);
+					});
 				}
-            }, function(error) {
-                console.log('Got a negative response to promise, with details: ' + error.message);
-            });
+		}, function(error) {
+			console.log('Got a negative response to Section Registration promise, with details: ' + error.message);
+		});
         console.log('Finished waiting for promise.');
 		
         return handlerInput.responseBuilder
@@ -563,8 +606,7 @@ const QUESTION3 = 'What was my grade for Computing Foundations? , you can ask th
 const QUESTION4 = 'Or you can ask, What is my account balance? ';
 const QUESTION_FINAL = 'Or, say help at any time to repeat this list. You can also change user by saying, change user.';
 const UNDER_CONSTRUCTION = 'Sorry, this intent is still under construction, please try later';
-const FINAL_GRADE_RESPONSE = 'Your final grade was ';
-const MIDTERM_GRADE_RESPONSE = 'Your midterm grade was ';
+const GRADE_RESPONSE = 'Your grade for ';
 const NO_GRADE_RESPONSE = 'I can\'t seem to find the grade for that.';
 const BALANCE_RESPONSE = 'Your account balance is ';
 const NO_BALANCE_RESPONSE = 'I couldn\'t find your account balance at this time ';
