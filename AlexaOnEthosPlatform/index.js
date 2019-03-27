@@ -12,10 +12,6 @@ const fuzz = require('fuzzball');
 // You may need to create a new application in Ethos Integration, with credentials that 
 // allow it to call the APIs of the applications that will serve the data, e.g. Colleague/Banner/etc.
 const ethosAPIKey = '<get your key from your application in Ethos Integration dashboard>';
-// Some Ethos APIs are missing, so we use the baseline Banner APIs instead
-const bannerStudentAPIEndpoint = 'https://<host>:<port>/StudentApi/api';
-const bannerStudentAPIUsername = '<Banner user to access the API>';
-const bannerStudentAPIPassword = '<Banner user password to access the API>';
 // The names of the AWS 'Systems Manager - Parameter Store' parameters we want to use for user validation
 const ParamBannerID = 'EthosDemoBannerID';
 const ParamBannerName = 'EthosDemoPersonName';
@@ -154,12 +150,9 @@ async function getBalance(){
     // Call the REST service
     console.log('Getting the Account Balance request');
     let options = {
-        uri: bannerStudentAPIEndpoint + '/account-balances/' + configuredBannerID,
-        auth: {
-            user: bannerStudentAPIUsername,
-            pass: bannerStudentAPIPassword
-        },
-        headers: {'Content-Type': 'application/vnd.hedtech.v12+json', 'Accept':'application/vnd.hedtech.v1+json'},
+        uri: 'https://integrate.elluciancloud.com/api/student-charges?student=' + configuredBannerPersonGUID,
+        headers: {	'Accept':'application/vnd.hedtech.integration.v6+json',
+					'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
     };
     
@@ -172,6 +165,11 @@ async function getBalance(){
 async function getSectionRegistrationsDetails(){
     let    responseJsonBody;
     
+	// Make sure we have an Ethos Authorisation Token
+	if (ethosBearerToken == null) {
+		await getEthosBearerToken();
+	}
+
     // Call the REST service
     console.log('Getting the Section Registration request');
     let options = {
@@ -190,6 +188,11 @@ async function getSectionRegistrationsDetails(){
 async function getSectionDetails(sectionGUID){
     let    responseJsonBody;
     
+	// Make sure we have an Ethos Authorisation Token
+	if (ethosBearerToken == null) {
+		await getEthosBearerToken();
+	}
+	
     // Call the REST service
     console.log('Getting the Section request for ' + sectionGUID);
     let options = {
@@ -208,6 +211,11 @@ async function getSectionDetails(sectionGUID){
 async function getGradeDefinitionsDetails(gradeGUID){
     let    responseJsonBody;
     
+	// Make sure we have an Ethos Authorisation Token
+	if (ethosBearerToken == null) {
+		await getEthosBearerToken();
+	}
+
     // Call the REST service
     console.log('Getting the Grade Definitions request for ' + gradeGUID);
     let options = {
@@ -334,12 +342,21 @@ const BalanceHandler = {
         console.log('Entering GetBalance');
 		const request = handlerInput.requestEnvelope.request;
         let speechOutput = NO_BALANCE_RESPONSE;
+		let balanceTotal = 0;
 		
 		let response = await getBalance()
 		    .catch(error=>console.error('Could not retrieve information from Balance API due to ' + error.message));
 
 		if(response) {
-		    speechOutput = BALANCE_RESPONSE + response.balance.toFixed(0) + ' ';
+			for(let i=0; i<response.length; i++){
+				balanceTotal += response[i].chargedAmount.amount.value;
+			}
+			
+		    speechOutput = BALANCE_RESPONSE + balanceTotal.toFixed(0) + ' ';
+			
+			// We're assuming here that the locale implies the currency being used.
+			// If your institution uses multiple currencies, then you need to look at the 
+			// response from the API above to get the total for each currency and return that.
 			switch(request.locale){
 				case 'en-GB': speechOutput += BRITISH_POUNDS;
 				              break;
@@ -562,7 +579,7 @@ const SessionEndedRequestHandler = {
     return request.type === 'SessionEndedRequest';
   },
   handle(handlerInput) {
-    console.log('Session ended with reason: ${handlerInput.requestEnvelope.request.reason}');
+    console.log('Session ended with reason: ' + handlerInput.requestEnvelope.request.reason);
 
     return handlerInput.responseBuilder.getResponse();
   },
@@ -573,7 +590,7 @@ const ErrorHandler = {
     return true;
   },
   handle(handlerInput, error) {
-    console.log('Error handled: ${error.message}');
+    console.log('Error handled: ' + error.message);
 
     return handlerInput.responseBuilder
       .speak('Sorry, an error occurred.')
