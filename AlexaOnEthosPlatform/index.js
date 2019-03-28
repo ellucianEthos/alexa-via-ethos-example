@@ -20,6 +20,10 @@ var configuredBannerName;
 var configuredBannerPersonGUID;
 var configValidated = false;
 var ethosBearerToken = null;
+var ethosTokenExpired = true;
+var retryCounter = 0;
+// The number of API call retries we should attempt before giving up.
+var retryLimit = 2;
 
 async function isSkillConfigured()
 {
@@ -112,6 +116,7 @@ async function getEthosBearerToken(){
 
 	// Set the cached value, so we don't need to retrieve it so many times.
 	ethosBearerToken = responseToken;
+	ethosTokenExpired = false;
 	
 	return responseToken;
 };
@@ -120,7 +125,7 @@ async function getPersonDetails(){
     let    responseJsonBody;
     
 	// Make sure we have an Ethos Authorisation Token
-	if (ethosBearerToken == null) {
+	if (ethosBearerToken == null || ethosTokenExpired) {
 		await getEthosBearerToken();
 	}
 	
@@ -134,8 +139,19 @@ async function getPersonDetails(){
     };
     
     responseJsonBody = await rp(options)
-		.catch(error=>console.error('Could not retrieve information from Person API due to ' + error.message));
-
+		.catch(error=> {
+			// If we get a 401 error, then the token must be expired
+			if (error.statusCode == "401" && retryCounter < retryLimit) {
+				ethosTokenExpired=true;
+				retryCounter++;
+				return this.getPersonDetails;
+			}
+			console.error('Could not retrieve information from Person API due to ' + error.message)
+		});
+	
+	// When successful, reset the retry counter.
+	retryCounter = 0;
+	
 	return responseJsonBody;
 };
 
@@ -143,7 +159,7 @@ async function getBalance(){
     let    responseJsonBody;
     
 	// Make sure we have an Ethos Authorisation Token
-	if (ethosBearerToken == null) {
+	if (ethosBearerToken == null || ethosTokenExpired) {
 		await getEthosBearerToken();
 	}
     
@@ -157,7 +173,20 @@ async function getBalance(){
     };
     
     responseJsonBody = await rp(options)
-		.catch(error=>console.error('Could not retrieve information from Account Balance API due to ' + error.message));
+		.catch(error=> {
+			console.error('Could not retrieve information from Account Balance API due to ' + error.message);
+			
+			// If we get a 401 error, then the token must be expired, we should retry
+			if (error.statusCode == "401" && retryCounter < retryLimit) {
+				console.error('The token has expired');
+				ethosTokenExpired=true;
+				retryCounter++;
+				return this.getBalance;
+			}
+		});
+	
+	// When successful, reset the retry counter.
+	retryCounter = 0;
 
 	return responseJsonBody;
 };
@@ -166,7 +195,7 @@ async function getSectionRegistrationsDetails(){
     let    responseJsonBody;
     
 	// Make sure we have an Ethos Authorisation Token
-	if (ethosBearerToken == null) {
+	if (ethosBearerToken == null || ethosTokenExpired) {
 		await getEthosBearerToken();
 	}
 
@@ -180,7 +209,20 @@ async function getSectionRegistrationsDetails(){
     };
     
     responseJsonBody = await rp(options)
-		.catch(error=>console.error('Could not retrieve information from Section Registrations API due to ' + error.message));
+		.catch(error=> {
+			console.error('Could not retrieve information from Section Registrations API due to ' + error.message);
+			
+			// If we get a 401 error, then the token must be expired, we should retry
+			if (error.statusCode == "401" && retryCounter < retryLimit) {
+				console.error('The token has expired');
+				ethosTokenExpired=true;
+				retryCounter++;
+				return this.getSectionRegistrationsDetails;
+			}
+		});
+	
+	// When successful, reset the retry counter.
+	retryCounter = 0;
 
 	return responseJsonBody;
 };
@@ -189,7 +231,7 @@ async function getSectionDetails(sectionGUID){
     let    responseJsonBody;
     
 	// Make sure we have an Ethos Authorisation Token
-	if (ethosBearerToken == null) {
+	if (ethosBearerToken == null || ethosTokenExpired) {
 		await getEthosBearerToken();
 	}
 	
@@ -203,7 +245,20 @@ async function getSectionDetails(sectionGUID){
     };
     
     responseJsonBody = await rp(options)
-		.catch(error=>console.error('Could not retrieve information from Sections API due to ' + error.message));
+		.catch(error=> {
+			console.error('Could not retrieve information from from Sections API due to ' + error.message);
+			
+			// If we get a 401 error, then the token must be expired, we should retry
+			if (error.statusCode == "401" && retryCounter < retryLimit) {
+				console.error('The token has expired');
+				ethosTokenExpired=true;
+				retryCounter++;
+				return this.getSectionRegistrationsDetails;
+			}
+		});
+	
+	// When successful, reset the retry counter.
+	retryCounter = 0;
 
 	return responseJsonBody;
 };
@@ -212,7 +267,7 @@ async function getGradeDefinitionsDetails(gradeGUID){
     let    responseJsonBody;
     
 	// Make sure we have an Ethos Authorisation Token
-	if (ethosBearerToken == null) {
+	if (ethosBearerToken == null || ethosTokenExpired) {
 		await getEthosBearerToken();
 	}
 
@@ -225,7 +280,20 @@ async function getGradeDefinitionsDetails(gradeGUID){
     };
     
     responseJsonBody = await rp(options)
-		.catch(error=>console.error('Could not retrieve information from Grade Definitions API due to ' + error.message));
+		.catch(error=> {
+			console.error('Could not retrieve information from from Grade Definitions API due to ' + error.message);
+			
+			// If we get a 401 error, then the token must be expired, we should retry
+			if (error.statusCode == "401" && retryCounter < retryLimit) {
+				console.error('The token has expired');
+				ethosTokenExpired=true;
+				retryCounter++;
+				return this.getSectionRegistrationsDetails;
+			}
+		});
+	
+	// When successful, reset the retry counter.
+	retryCounter = 0;
 
 	return responseJsonBody;
 };
@@ -234,7 +302,7 @@ async function getGPA(){
 	let    responseJsonBody;
 
 	// Make sure we have an Ethos Authorisation Token
-	if (ethosBearerToken == null) {
+	if (ethosBearerToken == null || ethosTokenExpired) {
 		await getEthosBearerToken();
 	}
     
@@ -248,7 +316,20 @@ async function getGPA(){
     };
 	
 	responseJsonBody = await rp(options)
-		.catch(error=>console.error('Could not retrieve information from GPA API due to ' + error.message));
+		.catch(error=>{
+			console.error('Could not retrieve information from from GPA API due to ' + error.message);
+			
+			// If we get a 401 error, then the token must be expired, we should retry
+			if (error.statusCode == "401" && retryCounter < retryLimit) {
+				console.error('The token has expired');
+				ethosTokenExpired=true;
+				retryCounter++;
+				return this.getSectionRegistrationsDetails;
+			}
+		});
+	
+	// When successful, reset the retry counter.
+	retryCounter = 0;
 
 	return responseJsonBody;
 }
