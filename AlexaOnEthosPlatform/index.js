@@ -12,6 +12,8 @@ const fuzz = require('fuzzball');
 // You may need to create a new application in Ethos Integration, with credentials that 
 // allow it to call the APIs of the applications that will serve the data, e.g. Colleague/Banner/etc.
 const ethosAPIKey = '<get your key from your application in Ethos Integration dashboard>';
+const ethosURIBase = 'https://integrate.elluciancloud.com';
+
 // The names of the AWS 'Systems Manager - Parameter Store' parameters we want to use for user validation
 const ParamBannerID = 'EthosDemoBannerID';
 const ParamBannerName = 'EthosDemoPersonName';
@@ -106,7 +108,7 @@ async function getEthosBearerToken(){
     console.log('Getting the Ethos Authorisation token request');
     let options = {
 		method: 'POST',
-        uri: 'https://integrate.elluciancloud.com/auth', 
+        uri: ethosURIBase + '/auth', 
         headers: {	'Authorization':'Bearer ' + ethosAPIKey},
 		json : true
     };
@@ -132,7 +134,7 @@ async function getPersonDetails(){
     // Call the REST service
     console.log('Getting the Person request');
     let options = {
-        uri: 'https://integrate.elluciancloud.com/api/persons?criteria={"credentials":[{"type":"bannerId","value":"' + configuredBannerID + '"}]}', 
+        uri: ethosURIBase + '/api/persons?criteria={"credentials":[{"type":"bannerId","value":"' + configuredBannerID + '"}]}', 
         headers: {	'Accept':'application/vnd.hedtech.integration.v12+json',
 					'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
@@ -166,7 +168,7 @@ async function getBalance(){
     // Call the REST service
     console.log('Getting the Account Balance request');
     let options = {
-        uri: 'https://integrate.elluciancloud.com/api/student-charges?student=' + configuredBannerPersonGUID,
+        uri: ethosURIBase + '/api/student-charges?student=' + configuredBannerPersonGUID,
         headers: {	'Accept':'application/vnd.hedtech.integration.v6+json',
 					'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
@@ -202,7 +204,7 @@ async function getSectionRegistrationsDetails(){
     // Call the REST service
     console.log('Getting the Section Registration request');
     let options = {
-		uri: 'https://integrate.elluciancloud.com/api/section-registrations?registrant=' + configuredBannerPersonGUID,
+		uri: ethosURIBase + '/api/section-registrations?registrant=' + configuredBannerPersonGUID,
         headers: {	'Accept':'application/vnd.hedtech.integration.v7+json',
 					'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
@@ -238,7 +240,7 @@ async function getSectionDetails(sectionGUID){
     // Call the REST service
     console.log('Getting the Section request for ' + sectionGUID);
     let options = {
-		uri: 'https://integrate.elluciancloud.com/api/sections/' + sectionGUID,
+		uri: ethosURIBase + '/api/sections/' + sectionGUID,
         headers: {	'Accept':'application/vnd.hedtech.integration.v16.0.0+json',
 					'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
@@ -274,7 +276,7 @@ async function getGradeDefinitionsDetails(gradeGUID){
     // Call the REST service
     console.log('Getting the Grade Definitions request for ' + gradeGUID);
     let options = {
-		uri: 'https://integrate.elluciancloud.com/api/grade-definitions/' + gradeGUID,
+		uri: ethosURIBase + '/api/grade-definitions/' + gradeGUID,
         headers: {	'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
     };
@@ -309,7 +311,7 @@ async function getGPA(){
     // Call the REST service
     console.log('Getting the GPA request');
     let options = {
-        uri: 'https://integrate.elluciancloud.com/api/student-grade-point-averages?criteria={"student":{"id":"' + configuredBannerPersonGUID +'"}}',
+        uri: ethosURIBase + '/api/student-grade-point-averages?criteria={"student":{"id":"' + configuredBannerPersonGUID +'"}}',
         headers: {	'Accept':'application/vnd.hedtech.integration.v1.0.0+json',
 					'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
