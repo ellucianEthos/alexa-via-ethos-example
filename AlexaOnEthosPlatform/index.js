@@ -47,7 +47,7 @@ async function isSkillConfigured()
 			
 	for(var i=0; i<retrievedParams.Parameters.length; i++) {
 		var param = retrievedParams.Parameters[i];
-		console.log('Param is: ' + param);
+		console.log('Param is: ' + param.Name + ':' + param.Value);
 		if(param.Name && param.Name==ParamBannerID) {
 			if(!param.Value){
 				console.log('Could not find value for param ' + ParamBannerID);
@@ -132,7 +132,7 @@ async function getPersonDetails(){
 	}
 	
     // Call the REST service
-    console.log('Getting the Person request');
+    console.log('Getting the Person request for Banner ID: ' + configuredBannerID);
     let options = {
         uri: ethosURIBase + '/api/persons?criteria={"credentials":[{"type":"bannerId","value":"' + configuredBannerID + '"}]}', 
         headers: {	'Accept':'application/vnd.hedtech.integration.v12+json',
@@ -469,38 +469,38 @@ const GradeHandler = {
 		const request = handlerInput.requestEnvelope.request;
 		const SubjectTitle = (request.intent.slots.SubjectTitle.value ? request.intent.slots.SubjectTitle.value : null);
 
+		provideProgressiveFeedback(handlerInput, "OK. Let me search through your registrations for " +SubjectTitle + ". One moment please.");
+			
 		console.log('Waiting for promise');
         await getSectionRegistrationsDetails().then(async function(SectionRegResponse) {
-                console.log('Got a positive response to promise');
-				// The following loop goes through all of the Section Registrations that the student has.
-				// It will try to match the title of the Section to the one the user specified.
-                for(let i=0; i<SectionRegResponse.length; i++){
-					// If one of our loops has already got our desired grade, then stop processing.
-					if (gotGrade) { 
-						break;
-					}
-					// Using the ID of the section the student is registered in, retrieve the section details, 
-					// so we can get the title out and compare it.
-					await getSectionDetails(SectionRegResponse[i].section.id).then(async function(sectionResponse) {
-						console.log('The response is ' + sectionResponse);
-						console.log('Comparing subject title ' + SubjectTitle + ' to response course ' + sectionResponse.titles[0].value);
-						if(fuzz.token_set_ratio(sectionResponse.titles[0].value, SubjectTitle) > 90) {
-							console.log('Found a matching course grade instance for ' + sectionResponse.titles[0].value + ' CRN# ' + sectionResponse.code);
-							
-							await getGradeDefinitionsDetails(SectionRegResponse[i].grades[0].grade.id).then(function(GradeDefResponse) {
-								speechOutput = GRADE_RESPONSE + sectionResponse.titles[0].value + ' was ' + GradeDefResponse.grade.value;
-								gotGrade = true;
-							}, function(error3) {
-								console.log('Got a negative response to Grade Definition promise, with details: ' + error3.message);
-							});
-						};
-					}, function(error2) {
-						console.log('Got a negative response to Section promise, with details: ' + error2.message);
-					});
+			console.log('Got a positive response to promise');
+			// The following loop goes through all of the Section Registrations that the student has.
+			// It will try to match the title of the Section to the one the user specified.
+			for(let i=0; i<SectionRegResponse.length; i++){
+				// If one of our loops has already got our desired grade, then stop processing.
+				if (gotGrade) { 
+					break;
 				}
-		}, function(error) {
-			console.log('Got a negative response to Section Registration promise, with details: ' + error.message);
-		});
+				// Using the ID of the section the student is registered in, retrieve the section details, 
+				// so we can get the title out and compare it.
+				await getSectionDetails(SectionRegResponse[i].section.id).then(async function(sectionResponse) {
+					console.log('The response is ' + sectionResponse);
+					console.log('Comparing subject title ' + SubjectTitle + ' to response course ' + sectionResponse.titles[0].value);
+					if(fuzz.token_set_ratio(sectionResponse.titles[0].value, SubjectTitle) > 90) {
+						console.log('Found a matching course grade instance for ' + sectionResponse.titles[0].value + ' CRN# ' + sectionResponse.code);
+						
+						await getGradeDefinitionsDetails(SectionRegResponse[i].grades[0].grade.id).then(function(GradeDefResponse) {
+							speechOutput = GRADE_RESPONSE + sectionResponse.titles[0].value + ' was ' + GradeDefResponse.grade.value;
+							gotGrade = true;
+						})
+						.catch(error3 => console.log('Got a negative response to Grade Definition promise, with details: ' + error3.message));
+					};
+				})
+				.catch(error2 => console.log('Got a negative response to Section promise, with details: ' + error2.message));
+			}
+		})
+		.catch(error => console.log('Got a negative response to Section Registration promise, with details: ' + error.message));
+		
         console.log('Finished waiting for promise.');
 		
         return handlerInput.responseBuilder
@@ -680,6 +680,22 @@ const ErrorHandler = {
       .reprompt('Sorry, an error occurred.')
       .getResponse();
   },
+};
+
+function provideProgressiveFeedback(handlerInput, textToSpeak) {
+  const { requestEnvelope } = handlerInput
+  const directiveServiceClient = handlerInput.serviceClientFactory.getDirectiveServiceClient()
+  
+  const directive = {
+    header: {
+      requestId: requestEnvelope.request.requestId
+    },
+    directive: {
+      type: 'VoicePlayer.Speak',
+      speech: textToSpeak
+    }
+  }
+  return directiveServiceClient.enqueue(directive, requestEnvelope.context.System.apiEndpoint, requestEnvelope.context.System.apiAccessToken)
 };
 
 const SKILL_NAME = 'Ellucian University';
