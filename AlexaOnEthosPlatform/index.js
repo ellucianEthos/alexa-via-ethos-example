@@ -49,7 +49,7 @@ async function isSkillConfigured()
 		var param = retrievedParams.Parameters[i];
 		console.log('Param is: ' + param.Name + ':' + param.Value);
 		if(param.Name && param.Name==ParamBannerID) {
-			if(!param.Value){
+			if(!param.Value || param.Value == ' '){
 				console.log('Could not find value for param ' + ParamBannerID);
 				return false;
 			} 
@@ -58,7 +58,7 @@ async function isSkillConfigured()
 			}
 		}
 		else if(param.Name && param.Name==ParamBannerName) {
-			if(!param.Value){
+			if(!param.Value  || param.Value == ' '){
 				console.log('Could not find value for param ' + ParamBannerName);
 				return false;
 			} 
@@ -316,6 +316,7 @@ async function getGPA(){
 					'Authorization':'Bearer ' + ethosBearerToken},
 		json : true
     };
+	console.log('GPA URI is ' + options.uri);
 	
 	responseJsonBody = await rp(options)
 		.catch(error=>{
@@ -497,6 +498,66 @@ const GradeHandler = {
 					};
 				})
 				.catch(error2 => console.log('Got a negative response to Section promise, with details: ' + error2.message));
+			}
+		})
+		.catch(error => console.log('Got a negative response to Section Registration promise, with details: ' + error.message));
+		
+        console.log('Finished waiting for promise.');
+		
+        return handlerInput.responseBuilder
+                        .speak(speechOutput)
+                        .reprompt(ANYTHING_ELSE)
+                        .withSimpleCard(SKILL_NAME, speechOutput)
+                        .getResponse();
+    },
+};
+
+const AllGradeHandler = {
+    canHandle(handlerInput) {
+        const request = handlerInput.requestEnvelope.request;
+        return request.type === 'IntentRequest' && request.intent.name === 'GetAllGrades';
+    },
+    async handle(handlerInput) {
+        console.log('Entering GetAllGrades');
+        let speechOutput = NO_GRADES_RESPONSE;
+		const request = handlerInput.requestEnvelope.request;
+
+		provideProgressiveFeedback(handlerInput, "OK. Give me a moment to search through the records. One moment please.");
+		
+		console.log('Waiting for promise');
+        await getSectionRegistrationsDetails().then(async function(SectionRegResponse) {
+			console.log('The section registration response is ' + JSON.stringify(SectionRegResponse));
+			console.log('---END RESPONSE---');
+			
+			console.log('Got a positive response to promise');
+			if (SectionRegResponse.length>0) {
+				speechOutput = 'Here are <emphasis level="strong">all</emphasis> ' + SectionRegResponse.length + ' of your grades. ';
+				// The following loop goes through all of the Section Registrations that the student has.
+				for(let i=0; i<SectionRegResponse.length; i++){
+					// Using the ID of the section the student is registered in, retrieve the section details, 
+					// so we can get the title and grade from it.
+					await getSectionDetails(SectionRegResponse[i].section.id).then(async function(sectionResponse) {
+						console.log('The section response is ' + JSON.stringify(sectionResponse));
+						console.log('---END RESPONSE---');
+						
+						speechOutput += sectionResponse.titles[0].value + ', ';			
+					})
+					.catch(error2 => console.log('Got a negative response to Section promise, with details: ' + error2.message));
+					
+					// If a grade exists, get it, otherwise output "no grade recorded"
+					if (SectionRegResponse[i].grades) {
+						await getGradeDefinitionsDetails(SectionRegResponse[i].grades[0].grade.id).then(function(GradeDefResponse) {
+							console.log('The grade response is ' + JSON.stringify(GradeDefResponse));
+							console.log('---END RESPONSE---');
+							
+							speechOutput += GradeDefResponse.grade.value + '. ';
+						})
+						.catch(error3 => console.log('Got a negative response to Grade Definition promise, with details: ' + error3.message));
+					}
+					else {
+						speechOutput += 'No grade achieved. ';
+					}
+				}
 			}
 		})
 		.catch(error => console.log('Got a negative response to Section Registration promise, with details: ' + error.message));
@@ -724,6 +785,7 @@ const QUESTION_FINAL = 'Or, say help at any time to repeat this list. You can al
 const UNDER_CONSTRUCTION = 'Sorry, this intent is still under construction, please try later';
 const GRADE_RESPONSE = 'Your grade for ';
 const NO_GRADE_RESPONSE = 'I can\'t seem to find the grade for that.';
+const NO_GRADES_RESPONSE = 'I can\'t seem to find any grade for you.';
 const BALANCE_RESPONSE = 'Your account balance is ';
 const NO_BALANCE_RESPONSE = 'I couldn\'t find your account balance at this time ';
 const AUSTRALIAN_DOLLARS = 'Australian Dollars';
@@ -739,6 +801,7 @@ exports.handler = skillBuilder
     GPAHandler,
 	BalanceHandler,
 	GradeHandler,
+	AllGradeHandler,
 	ConfigureHandler,
 	ProvideBannerIDHandler,
 	ProvideNameHandler,
