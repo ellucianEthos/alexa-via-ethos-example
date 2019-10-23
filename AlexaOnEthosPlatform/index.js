@@ -9,8 +9,8 @@ const ssm  = new AWS.SSM();
 const fuzz = require('fuzzball');
 
 // The API key of the application we will call Ethos Integration with
-const ethosAPIKey = '1b714654-a4af-42ff-aeb2-e64b3eb0fbd3'; //Ethos APAC - 'Alexa' application
-const ethosURIBase = 'https://integrate.elluciancloud.com';
+const ethosAPIKey = '<Your API key here>'; 
+const ethosURIBase = 'https://integrate.elluciancloud.com'; // Make sure to adjust the URI for your local Ethos access points.
 
 // The names of the AWS 'Systems Manager - Parameter Store' parameters we want to use for user validation
 const ParamBannerID = 'EthosDemoBannerID';
