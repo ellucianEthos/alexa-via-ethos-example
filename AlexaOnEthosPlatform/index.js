@@ -9,9 +9,7 @@ const ssm  = new AWS.SSM();
 const fuzz = require('fuzzball');
 
 // The API key of the application we will call Ethos Integration with
-// You may need to create a new application in Ethos Integration, with credentials that 
-// allow it to call the APIs of the applications that will serve the data, e.g. Colleague/Banner/etc.
-const ethosAPIKey = '<get your key from your application in Ethos Integration dashboard>';
+const ethosAPIKey = '1b714654-a4af-42ff-aeb2-e64b3eb0fbd3'; //Ethos APAC - 'Alexa' application
 const ethosURIBase = 'https://integrate.elluciancloud.com';
 
 // The names of the AWS 'Systems Manager - Parameter Store' parameters we want to use for user validation
@@ -80,7 +78,7 @@ async function isSkillConfigured()
 		configValidated = false;
 		return false;
 	}
-};
+}
 
 async function validateConfig(){
 	console.log('entering validateConfig()');
@@ -99,11 +97,9 @@ async function validateConfig(){
 	const fuzz_ratio = fuzz.token_set_ratio(configuredBannerName.toLowerCase(), PersonAPIName.toLowerCase());
 	console.log('Comparing the configured name of ' + configuredBannerName + ' and the name returned from Banner (' + PersonAPIName + ') and got a match of ' + fuzz_ratio + '%');
 	return fuzz_ratio>85;
-};
+}
 
-async function getEthosBearerToken(){
-    let    responseToken;
-    
+function getEthosBearerToken(){
     // Call the REST service
     console.log('Getting the Ethos Authorisation token request');
     let options = {
@@ -113,15 +109,15 @@ async function getEthosBearerToken(){
 		json : true
     };
     
-    responseToken = await rp(options)
+    rp(options)
+    	.then(responseToken => {
+    		// Set the cached value, so we don't need to retrieve it so many times.
+			ethosBearerToken = responseToken;
+			ethosTokenExpired = false;
+			return responseToken;
+    	})
 		.catch(error=>console.error('Could not retrieve Ethos Authorisation Token, due to: ' + error.message));
-
-	// Set the cached value, so we don't need to retrieve it so many times.
-	ethosBearerToken = responseToken;
-	ethosTokenExpired = false;
-	
-	return responseToken;
-};
+}
 
 async function getPersonDetails(){
     let    responseJsonBody;
@@ -148,6 +144,7 @@ async function getPersonDetails(){
 				retryCounter++;
 				return this.getPersonDetails;
 			}
+			
 			console.error('Could not retrieve information from Person API due to ' + error.message)
 		});
 	
@@ -155,7 +152,7 @@ async function getPersonDetails(){
 	retryCounter = 0;
 	
 	return responseJsonBody;
-};
+}
 
 async function getBalance(){
     let    responseJsonBody;
@@ -185,13 +182,14 @@ async function getBalance(){
 				retryCounter++;
 				return this.getBalance;
 			}
+			
 		});
 	
 	// When successful, reset the retry counter.
 	retryCounter = 0;
 
 	return responseJsonBody;
-};
+}
 
 async function getSectionRegistrationsDetails(){
     let    responseJsonBody;
@@ -221,13 +219,14 @@ async function getSectionRegistrationsDetails(){
 				retryCounter++;
 				return this.getSectionRegistrationsDetails;
 			}
+			
 		});
 	
 	// When successful, reset the retry counter.
 	retryCounter = 0;
 
 	return responseJsonBody;
-};
+}
 
 async function getSectionDetails(sectionGUID){
     let    responseJsonBody;
@@ -255,15 +254,16 @@ async function getSectionDetails(sectionGUID){
 				console.error('The token has expired');
 				ethosTokenExpired=true;
 				retryCounter++;
-				return this.getSectionRegistrationsDetails;
+				return this.getSectionDetails;
 			}
+			
 		});
 	
 	// When successful, reset the retry counter.
 	retryCounter = 0;
 
 	return responseJsonBody;
-};
+}
 
 async function getGradeDefinitionsDetails(gradeGUID){
     let    responseJsonBody;
@@ -290,15 +290,16 @@ async function getGradeDefinitionsDetails(gradeGUID){
 				console.error('The token has expired');
 				ethosTokenExpired=true;
 				retryCounter++;
-				return this.getSectionRegistrationsDetails;
+				return this.getGradeDefinitionsDetails;
 			}
+			
 		});
 	
 	// When successful, reset the retry counter.
 	retryCounter = 0;
 
 	return responseJsonBody;
-};
+}
 
 async function getGPA(){
 	let    responseJsonBody;
@@ -321,14 +322,15 @@ async function getGPA(){
 	responseJsonBody = await rp(options)
 		.catch(error=>{
 			console.error('Could not retrieve information from from GPA API due to ' + error.message);
-			
+			 
 			// If we get a 401 error, then the token must be expired, we should retry
 			if (error.statusCode == "401" && retryCounter < retryLimit) {
 				console.error('The token has expired');
 				ethosTokenExpired=true;
 				retryCounter++;
-				return this.getSectionRegistrationsDetails;
+				return this.getGPA;
 			}
+			
 		});
 	
 	// When successful, reset the retry counter.
@@ -336,7 +338,6 @@ async function getGPA(){
 
 	return responseJsonBody;
 }
-
 
 const EthosHandler = {
   canHandle(handlerInput) {
@@ -366,7 +367,7 @@ const EthosHandler = {
       .reprompt(repromptOutput)
       .getResponse();
   },
-};
+}
 
 const AttendanceHandler = {
   canHandle(handlerInput) {
@@ -384,7 +385,7 @@ const AttendanceHandler = {
       .withSimpleCard(SKILL_NAME, speechOutput)
       .getResponse();
   },
-};
+}
 
 const GPAHandler = {
     canHandle(handlerInput) {
@@ -415,7 +416,7 @@ const GPAHandler = {
                         .withSimpleCard(SKILL_NAME, speechOutput)
                         .getResponse();
     },
-};
+}
 
 const BalanceHandler = {
     canHandle(handlerInput) {
@@ -456,7 +457,7 @@ const BalanceHandler = {
                         .withSimpleCard(SKILL_NAME, speechOutput)
                         .getResponse();
     },
-};
+}
 
 const GradeHandler = {
     canHandle(handlerInput) {
@@ -470,7 +471,8 @@ const GradeHandler = {
 		const request = handlerInput.requestEnvelope.request;
 		const SubjectTitle = (request.intent.slots.SubjectTitle.value ? request.intent.slots.SubjectTitle.value : null);
 
-		provideProgressiveFeedback(handlerInput, "OK. Let me search through your registrations for " +SubjectTitle + ". One moment please.");
+		provideProgressiveFeedback(handlerInput, "OK. Let me search through your registrations for " +SubjectTitle + ". One moment please.")
+			.catch(feedbackErr => console.log('Feedback speech failed: ' + feedbackErr.message));
 			
 		console.log('Waiting for promise');
         await getSectionRegistrationsDetails().then(async function(SectionRegResponse) {
@@ -510,7 +512,7 @@ const GradeHandler = {
                         .withSimpleCard(SKILL_NAME, speechOutput)
                         .getResponse();
     },
-};
+}
 
 const AllGradeHandler = {
     canHandle(handlerInput) {
@@ -522,7 +524,8 @@ const AllGradeHandler = {
         let speechOutput = NO_GRADES_RESPONSE;
 		const request = handlerInput.requestEnvelope.request;
 
-		provideProgressiveFeedback(handlerInput, "OK. Give me a moment to search through the records. One moment please.");
+		provideProgressiveFeedback(handlerInput, "OK. Give me a moment to search through the records. One moment please.")
+			.catch(feedbackErr => console.log('Feedback speech failed: ' + feedbackErr.message));
 		
 		console.log('Waiting for promise');
         await getSectionRegistrationsDetails().then(async function(SectionRegResponse) {
@@ -558,7 +561,7 @@ const AllGradeHandler = {
 						speechOutput += 'No grade achieved. ';
 					}
 				}
-			}
+			}		
 		})
 		.catch(error => console.log('Got a negative response to Section Registration promise, with details: ' + error.message));
 		
@@ -570,7 +573,7 @@ const AllGradeHandler = {
                         .withSimpleCard(SKILL_NAME, speechOutput)
                         .getResponse();
     },
-};
+}
 
 const ConfigureHandler = {
   canHandle(handlerInput) {
@@ -592,7 +595,7 @@ const ConfigureHandler = {
       .reprompt(repromptOutput)
       .getResponse();
   },
-};
+}
 
 const ProvideBannerIDHandler = {
   canHandle(handlerInput) {
@@ -635,7 +638,7 @@ const ProvideBannerIDHandler = {
       .reprompt(repromptOutput)
       .getResponse();
   },
-};
+}
 
 const ProvideNameHandler = {
   canHandle(handlerInput) {
@@ -687,7 +690,7 @@ const ProvideNameHandler = {
       .reprompt(repromptOutput)
       .getResponse();
   },
-};
+}
 
 const HelpHandler = {
   canHandle(handlerInput) {
@@ -701,7 +704,7 @@ const HelpHandler = {
       .reprompt(HELP_REPROMPT)
       .getResponse();
   },
-};
+}
 
 const ExitHandler = {
   canHandle(handlerInput) {
@@ -715,7 +718,7 @@ const ExitHandler = {
       .speak(STOP_MESSAGE)
       .getResponse();
   },
-};
+}
 
 const SessionEndedRequestHandler = {
   canHandle(handlerInput) {
@@ -727,7 +730,7 @@ const SessionEndedRequestHandler = {
 
     return handlerInput.responseBuilder.getResponse();
   },
-};
+}
 
 const ErrorHandler = {
   canHandle() {
@@ -741,7 +744,7 @@ const ErrorHandler = {
       .reprompt('Sorry, an error occurred.')
       .getResponse();
   },
-};
+}
 
 function provideProgressiveFeedback(handlerInput, textToSpeak) {
   const { requestEnvelope } = handlerInput
@@ -757,7 +760,7 @@ function provideProgressiveFeedback(handlerInput, textToSpeak) {
     }
   }
   return directiveServiceClient.enqueue(directive, requestEnvelope.context.System.apiEndpoint, requestEnvelope.context.System.apiAccessToken)
-};
+}
 
 const SKILL_NAME = 'Ellucian University';
 const ETHOS_INTRO_MESSAGE = 'Welcome to Ellucian University. ';
